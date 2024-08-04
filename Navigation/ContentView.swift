@@ -7,29 +7,61 @@
 
 import SwiftUI
 
-struct DetailView: View {
-    var number: Int
-    var body: some View {
-        
-        Text("\(number)")
-        
+@Observable
+class PathStore{
+    var path: NavigationPath{
+        didSet{
+            save()
+        }
     }
     
-    init(number: Int) {
-        self.number = number
-        print("\(number)")
+    private let savePath = URL.documentsDirectory.appending(path: "savedPath")
+        
+    init(){
+        if let data = try? Data(contentsOf: savePath){
+            if let decodedData = try? JSONDecoder().decode(NavigationPath.CodableRepresentation.self, from: data){
+                path = NavigationPath(decodedData)
+                return
+            }
+        }
+        path = NavigationPath()
     }
     
+    func save(){
+        guard let representation = path.codable else { return }
+        do{
+            let data = try JSONEncoder().encode(representation)
+            try data.write(to: savePath)
+        }catch{
+            print("Failed to decode the data")
+        }
+    }
 }
 
-struct ContentView: View {
+struct DetailView: View {
+    var number: Int
+    @Binding var path: NavigationPath
+
     var body: some View {
-        NavigationStack{
-            List(0..<100){ i in
-                NavigationLink("select \(i)", value: i)
+        NavigationLink("Go to Random Number", value: Int.random(in: 1...1000))
+            .navigationTitle("Number: \(number)")
+            .toolbar{
+                Button("Home"){
+                    path = NavigationPath()
+                }
             }
-            .navigationDestination(for: Int.self) { ii in
-                DetailView(number: ii)
+    }
+}
+
+
+struct ContentView: View {
+    @State private var pathStore = PathStore()
+    
+    var body: some View {
+        NavigationStack(path: $pathStore.path){
+            DetailView(number: 0, path: $pathStore.path)
+            .navigationDestination(for: Int.self) { i in
+                DetailView(number: i, path: $pathStore.path)
             }
         }
     }
